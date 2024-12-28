@@ -1,0 +1,69 @@
+{
+  "name": "snipify",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fortawesome/fontawesome-svg-core": "^6.5.1",
+    "@fortawesome/free-solid-svg-icons": "^6.5.1",
+    "@metamask/detect-provider": "^2.0.0",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@zegocloud/zego-uikit-prebuilt": "^1.9.0",
+    "axios": "^1.6.5",
+    "body-parser": "^1.20.2",
+    "codemirror": "^5.65.2",
+    "cors": "^2.8.5",
+    "ethers": "^5.7.2",
+    "express": "^4.18.2",
+    "firebase": "^10.7.1",
+    "firebase-admin": "^12.0.0",
+    "react": "^18.2.0",
+    "react-avatar": "^5.0.3",
+    "react-circular-progressbar": "^2.1.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-icons": "^5.2.1",
+    "react-image-gallery": "^1.3.0",
+    "react-modal": "^3.16.1",
+    "react-router-dom": "^6.21.1",
+    "react-scripts": "5.0.1",
+    "react-speech-recognition": "^3.10.0",
+    "recharts": "^2.12.0",
+    "socket.io": "^4.7.4",
+    "socket.io-client": "^4.7.4",
+    "string-similarity": "^4.0.4",
+    "web-vitals": "^2.1.4",
+    "web3": "^4.11.1",
+    "web3modal": "^1.9.12"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
+  }
+}
