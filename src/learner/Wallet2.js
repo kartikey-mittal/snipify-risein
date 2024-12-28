@@ -1,309 +1,209 @@
-// Import necessary dependencies
-import React, { useEffect, useState } from "react";
-import Web3 from 'web3';
-import detectEthereumProvider from '@metamask/detect-provider';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../Firebase';
-import { useNavigate, useParams } from "react-router-dom";
-import Navbar1 from "../Navbar1";
-import { FaUser, FaMoneyBillWave } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
 
-// Main component
-const Wallet2 = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-  
-  // State variables
-  const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 615);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-  const [uploadStatus, setUploadStatus] = useState({ success: false, fileName: '' });
+// Simplified ERC20 ABI
+const EDU_TOKEN_ABI = [
+    // Read-only functions
+    {
+        "inputs": [{ "internalType": "address", "name": "account", "type": "address" }],
+        "name": "balanceOf",
+        "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    // Transfer function
+    {
+        "inputs": [
+            { "internalType": "address", "name": "to", "type": "address" },
+            { "internalType": "uint256", "name": "amount", "type": "uint256" }
+        ],
+        "name": "transfer",
+        "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+];
 
-  // Button text based on upload status
-  const buttonText = uploadStatus.success
-    ? `File uploaded successfully:\n${uploadStatus.fileName}`
-    : 'Drag and Drop\nor Click to Upload';
+// EDU Token contract address for Open Campus Codex Sepolia
+const EDU_TOKEN_ADDRESS = "0x9Df0a697184Acfc3CE20aC3B02eF182622168C74"; // Updated EDU token address
 
-  // Handle window resize
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobileView(window.innerWidth <= 615);
+const Wallet = () => {
+    const [account, setAccount] = useState('');
+    const [balance, setBalance] = useState(0);
+    const [recipientAddress, setRecipientAddress] = useState('');
+    const [amount, setAmount] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [networkStatus, setNetworkStatus] = useState('');
+
+    const connectWallet = async () => {
+        try {
+            if (window.ethereum) {
+                const accounts = await window.ethereum.request({
+                    method: 'eth_requestAccounts'
+                });
+
+                try {
+                    // First try to switch to the network
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: 656476 }], // 656476 in hex
+                        });
+                    } catch (switchError) {
+                        // If the network doesn't exist, add it
+                        if (switchError.code === 4902) {
+                            await window.ethereum.request({
+                                method: 'wallet_addEthereumChain',
+                                params: [{
+                                    chainId: 656476,
+                                    chainName: 'Open Campus Codex Sepolia',
+                                    nativeCurrency: {
+                                        name: 'EDU',
+                                        symbol: 'EDU',
+                                        decimals: 18
+                                    },
+                                    rpcUrls: ['https://open-campus-codex-sepolia.drpc.org'],
+                                    blockExplorerUrls: ['https://sepolia.explorer.codex.storage']
+                                }]
+                            });
+                        }
+                    }
+
+                    setNetworkStatus('Connected to Open Campus Codex Sepolia');
+                    setAccount(accounts[0]);
+                    await getBalance(accounts[0]);
+                } catch (error) {
+                    console.error('Error setting up network:', error);
+                    setNetworkStatus('Error connecting to network');
+                }
+            } else {
+                alert('Please install MetaMask!');
+            }
+        } catch (error) {
+            console.error('Error connecting wallet:', error);
+            setNetworkStatus('Error connecting wallet');
+        }
     };
 
-    window.addEventListener('resize', handleResize);
+    const getBalance = async (address) => {
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            await provider.ready;
 
-    // Clean up the event listener on component unmount
-    return () => {
-      window.removeEventListener('resize', handleResize);
+            const network = await provider.getNetwork();
+            console.log('Current network:', network);
+
+            const eduContract = new ethers.Contract(EDU_TOKEN_ADDRESS, EDU_TOKEN_ABI, provider);
+            const balance = await eduContract.balanceOf(address);
+            console.log('Raw balance:', balance.toString());
+            
+            // Format balance assuming 18 decimals (standard for ERC20)
+            setBalance(ethers.utils.formatEther(balance));
+        } catch (error) {
+            console.error('Detailed balance error:', error);
+            setBalance('Error');
+        }
     };
-  }, []);
 
-  // Handle drag enter
-  const [web3, setWeb3] = useState(null);
-  const [account, setAccount] = useState(null);
-  const [recipient, setRecipient] = useState('0x12573e41d33f823DcffFD4309D5443F028069e0c');
-  const [amount, setAmount] = useState('0.005');
+    const sendTokens = async () => {
+        if (!amount || !recipientAddress) return;
+        
+        try {
+            setLoading(true);
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const eduContract = new ethers.Contract(EDU_TOKEN_ADDRESS, EDU_TOKEN_ABI, signer);
+            
+            const parsedAmount = ethers.utils.parseEther(amount);
+            console.log('Sending amount:', parsedAmount.toString());
+            
+            const checksumRecipient = ethers.utils.getAddress(recipientAddress);
+            
+            const tx = await eduContract.transfer(checksumRecipient, parsedAmount, {
+                gasLimit: 100000 // Set a fixed gas limit
+            });
+            
+            console.log('Transaction hash:', tx.hash);
+            await tx.wait();
+            
+            await getBalance(account);
+            setAmount('');
+            setRecipientAddress('');
+            alert('Transfer successful!');
+        } catch (error) {
+            console.error('Detailed transfer error:', error);
+            alert('Transfer failed: ' + (error.data?.message || error.message));
+        } finally {
+            setLoading(false);
+        }
+    };
 
-  const connectWallet = async () => {
-    const provider = await detectEthereumProvider();
-    if (provider) {
-      const web3Instance = new Web3(provider);
-      setWeb3(web3Instance);
-      const accounts = await provider.request({ method: 'eth_requestAccounts' });
-      setAccount(accounts[0]);
-    } else {
-      console.log('Please install MetaMask!');
-    }
-  };
+    useEffect(() => {
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                setAccount(accounts[0]);
+                if (accounts[0]) getBalance(accounts[0]);
+            });
 
-  const sendPayment = async () => {
-    if (!web3 || !account) {
-      console.log('Please connect your wallet first!');
-      return;
-    }
+            window.ethereum.on('chainChanged', (_chainId) => {
+                window.location.reload();
+            });
+        }
+        return () => {
+            if (window.ethereum) {
+                window.ethereum.removeAllListeners('accountsChanged');
+                window.ethereum.removeAllListeners('chainChanged');
+            }
+        };
+    }, []);
 
-    try {
-      await web3.eth.sendTransaction({
-        from: account,
-        to: recipient,
-        value: web3.utils.toWei(amount, 'ether'),
-      });
-      console.log('Transaction successful!');
-    } catch (error) {
-      console.error('Transaction failed!', error);
-    }
-  };
-
-  const handleSubmitAnswers = async () => {
-    try {
-      // Construct an array of screenshot URLs
-      const screenshotURLs = uploadedFiles.map(file => file.url);
-
-      // Update the document in the "Requests" collection with the screenshot URLs
-      const requestDocRef = doc(db, 'Requests', id);
-      await updateDoc(requestDocRef, {
-        Screenshots: screenshotURLs,
-      });
-
-      console.log('Screenshots updated successfully');
-
-      // Navigate to a success page or perform any other actions
-      navigate('/skilled/home');
-    } catch (error) {
-      console.error('Error updating screenshots:', error);
-    }
-  };
-
-  // Styles for the components
-  const homeStyle = {
-    height: '100%',
-    display: 'flex',
-    justifyContent: 'center',
-    padding: 20,
-    background: `
-    repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255, 133, 244, 0.8) 50px, rgba(66, 133, 244, 0.8) 51px),
-    repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(66, 133, 244, 0.8) 50px, rgba(66, 133, 244, 0.8) 51px),
-    #5813ea`,
-  };
-
-  const contentStyle = {
-    width: isMobileView ? '100%' : '85%',
-    height: '85vh',
-    border: '1px solid #ccc',
-    borderRadius: 15,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    overflow: 'hidden', // Hide overflow content
-    backgroundColor: '#F3F6FC',
-  };
-
-  const headingStyle = {
-    width: '100%',
-    backgroundColor: '#FFF4E8',
-    fontSize: 25,
-    fontFamily: 'DMM',
-    fontWeight: 500,
-    paddingTop: 5,
-    paddingBottom: 5,
-    display: 'flex',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  };
-
-  const mainboxStyle = {
-    width: '90%',
-    height: '85%',
-    backgroundColor: 'white',
-    borderRadius: 15,
-    margin: 'auto',
-    marginTop: '20px',
-    border: '1px solid blue',
-    boxShadow: '0px 8px 10px rgba(0, 0, 0, 0.1)',
-    overflowY: 'auto',
-    scrollbarWidth: 'none',
-    msOverflowStyle: 'none',
-    display: "flex",
-    flexDirection: "column",
-  };
-
-  // Render component
-  return (
-    <>
-      <Navbar1 />
-      <div style={homeStyle}>
-        <div style={contentStyle}>
-          <div style={headingStyle}>
-            <div style={{
-              fontSize: isMobileView ? 18 : 22,
-              fontFamily: 'DMM',
-              fontWeight: 500,
-              marginLeft: isMobileView ? 15 : 30,
-            }}>Pay rewards to tutor ✨</div>
-          </div>
-
-          <div style={mainboxStyle}>
-            <div style={{ backgroundColor: "white", height: 50, flexDirection: 'row', display: 'flex', alignItems: 'center' }}>
-              <div style={{ marginRight: '20px', fontSize: 20, marginLeft: '10px', marginBottom: 3 }}>⌛</div>
-              <div style={{ marginRight: '10px', fontSize: 25, fontFamily: "DMM", fontStyle: 'bold' }}>
-                </div>
+    return (
+        <div className="wallet-container">
+            <h1>EDU Token Transfer</h1>
+            
+            <div className="network-status">
+                {networkStatus && <p>{networkStatus}</p>}
             </div>
-
-            <div style={{
-              display: 'flex',
-              flexDirection: 'row',
-              gap: 5,
-              justifyContent: 'center',
-              padding: 0
-            }}>
-            </div>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              height: '100vh',
-              opacity: 0.8,
-            }}>
-              <div style={{
-                backgroundColor: 'white',
-                padding: '20px',
-                borderRadius: '10px',
-                boxShadow: '0 0 10px rgba(0,0,0,0.1)',
-                textAlign: 'center',
-                width: '400px',
-              }}>
-                <button
-                  onClick={connectWallet}
-                  style={{
-                    backgroundColor: '#f3831e',
-                    color: 'white',
-                    padding: '10px 20px',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    marginBottom: '20px',
-                    fontFamily: 'DMM',
-                    fontWeight: 500,
-                    fontSize: 25,
-                    borderWidth: '2px',
-                    borderColor: 'black',
-                  }}
-                >
-                  Connect Wallet
+            
+            {!account ? (
+                <button className="connect-btn" onClick={connectWallet}>
+                    Connect Wallet
                 </button>
-                <h1 style={{
-                  color: 'black',
-                  fontSize: '2em',
-                  marginBottom: '20px',
-                  fontWeight: 800,
-                  fontFamily: 'DMM'
-                }}>Pay to tutor</h1>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FaUser size={20} />
-                    <label htmlFor="recipient" style={{ fontFamily: 'DMM', fontSize: 15,color:'#212121' }}>Recipient Address</label>
-                  </div>
-                  <input
-                    id="recipient"
-                    type="text"
-                    placeholder="Recipient Address"
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '7px',
-                      borderRadius: '5px',
-                      border: '1px solid #ccc',
-                      fontFamily:'DMM',fontWeight:500,fontSize:'0.8rem',color:"red",opacity:0.8
-                    }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FaMoneyBillWave size={20} />
-                    <label htmlFor="amount" style={{ fontFamily: 'DMM', fontSize: 15 ,color:'#212121'}}>Amount (ETH)</label>
-                  </div>
-                  <input
-                    id="amount"
-                    type="text"
-                    placeholder="Amount (ETH)"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '5px',
-                      border: '1px solid green',
-                      color: 'green',
-                      fontSize: '1.2em',
+            ) : (
+                <div className="wallet-content">
+                    <div className="account-info">
+                        <p>Connected Account: </p>
+                        <p className="address">{account}</p>
+                        <p className="balance">Balance: {balance} EDU</p>
+                    </div>
                     
-                      backgroundColor: '#f8f8f8'
-                    }}
-                  />
-                  <button
-                    onClick={sendPayment}
-                    style={{
-                      backgroundColor: '#5813ea',
-                      color: 'white',
-                      padding: '10px 20px',
-                      borderRadius: '5px',
-                      cursor: 'pointer',
-                      fontFamily: 'DMM',
-                      fontWeight: 500,
-                      fontSize: 25,
-                      borderWidth: '2px',
-                      borderColor: 'black',
-                      marginTop: '20px'
-                    }}
-                  >
-                    Send Payment
-                  </button>
+                    <div className="transfer-form">
+                        <input
+                            type="text"
+                            placeholder="Recipient Address (0x...)"
+                            value={recipientAddress}
+                            onChange={(e) => setRecipientAddress(e.target.value)}
+                        />
+                        <input
+                            type="number"
+                            placeholder="Amount in EDU"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            max={balance}
+                            step="0.000000000000000001"
+                        />
+                        <button 
+                            onClick={sendTokens}
+                            disabled={loading || !amount || !recipientAddress}
+                            className="transfer-btn"
+                        >
+                            {loading ? 'Sending...' : 'Send EDU'}
+                        </button>
+                    </div>
                 </div>
-              </div>
-            </div>
-
-            {/* <button
-              onClick={handleSubmitAnswers}
-              style={{
-                marginTop: '20px',
-                backgroundColor: 'green',
-                color: 'white',
-                padding: '10px 20px',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                fontFamily: 'DMM',
-                fontWeight: 500,
-                fontSize: 20,
-                borderWidth: '2px',
-                borderColor: 'black',
-                marginBottom: '20px',
-                alignSelf: 'center',
-              }}
-            >
-              Submit Answers
-            </button> */}
-          </div>
+            )}
         </div>
-      </div>
-    </>
-  );
+    );
 };
 
-export default Wallet2;
+export default Wallet;

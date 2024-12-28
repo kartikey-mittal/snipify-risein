@@ -36,6 +36,7 @@ import CHome from "./code_editor/CHome";
 import Demo from "./learner/GenieInterview";
 import Contribute from "./learner/Contribute";
 import Wallet from "./learner/Wallet";
+import Wallet2 from "./learner/Wallet2";
 
 function App() {
   return (
@@ -70,6 +71,7 @@ function App() {
         <Route path="/skilled/sessions" element={<Sessions/>}   />
         <Route path="/skilled/upload/:id" element={<Upload/>}   />
         <Route path="/learner/wallet" element={<Wallet/>}   />
+        <Route path="/wallet" element={<Wallet2/>}   />
         <Route path="/signup/face/:id" element={<Face/>}   />
         <Route path="/skilled/face/:id" element={<CheckFace/>}   />
         <Route path="/question/:id" element={<Question/>}   />

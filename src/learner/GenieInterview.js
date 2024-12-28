@@ -3,15 +3,15 @@ import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognitio
 import axios from 'axios';
 import { CircularProgressbar } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
-
+import styled from 'styled-components';
 
 const questions = [
     'Explain the concept of a blockchain and its role in Web3.',
-    ' Explain the concept of props in React and how they are used',
+    'Explain the concept of props in React and how they are used.',
     'What is the significance of the useEffect() hook in React?'
 ];
+
 const Demo = () => {
-    // ---------------- AI INTERVIEW CODE [OPEN] -------------------------
     const [questionIndex, setQuestionIndex] = useState(0);
     const [userAnswer, setUserAnswer] = useState('');
     const [answers, setAnswers] = useState([]);
@@ -19,25 +19,26 @@ const Demo = () => {
     const [timer, setTimer] = useState(10);
     const [feedback, setFeedback] = useState('');
     const { transcript, resetTranscript } = useSpeechRecognition();
-    const [loading, setLoading] = useState(false); // State to track loading status
-
+    const [loading, setLoading] = useState(false);
+    const videoRef = useRef(null);
+    const isMountedRef = useRef(false);
 
     const extractPercentage = (feedback) => {
-        const match = feedback.match(/The percentage is (\d+)%/);
+        // Use a regular expression to match any number followed by a percentage sign
+        const match = feedback.match(/(\d+)%/);
         return match ? parseInt(match[1], 10) : 0;
-        
     };
-    console.log(extractPercentage(feedback));
 
-    console.log(isListening);
     useEffect(() => {
-        // This effect runs once after the initial render
-        setQuestionIndex(0);
-    }, []); // Empty dependency array ensures this effect runs only once
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
 
     useEffect(() => {
         if (questionIndex < questions.length) {
-            setTimer(10)
+            setTimer(10);
             setIsListening(true);
             SpeechRecognition.startListening({ continuous: false });
             const countdown = setInterval(() => {
@@ -55,170 +56,230 @@ const Demo = () => {
             resetTranscript();
             setQuestionIndex(questionIndex + 1);
             setTimer(10);
-            // Store the answer immediately after capturing it
             if (questionIndex < questions.length) {
                 setAnswers(prevAnswers => [...prevAnswers, { question: questions[questionIndex - 1], answer: userAnswer }]);
             }
         }
-    }, [timer,questionIndex, resetTranscript, transcript, userAnswer]);
-
-    useEffect(() => {
-        // Automatically call handleFinish when all questions have been answered
-        if (questionIndex === questions.length) {
-            handleFinish();
-            if (videoRef.current && videoRef.current.srcObject) {
-                videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-            }
-        }
-    },);
+    }, [timer, questionIndex, resetTranscript, transcript, userAnswer]);
 
     const handleFinish = async () => {
-        setLoading(true); // Start loading
-        // Ensure all answers are stored before making the API call
+        setLoading(true);
         const allAnswers = [...answers, { question: questions[questionIndex - 1], answer: userAnswer }];
         setAnswers(allAnswers);
 
-        // Construct the prompt for the Gemini API
         const prompt = allAnswers.map(({ question, answer }) => `Question: ${question}, Answer: ${answer}`).join(', ');
-        console.log(`Prompt for Gemini API: ${prompt}`);
 
         try {
-            const response = await axios({
-                url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyB9Vwe1lTs8a9Rcm5_ubwinsLd28H6UEL0",
-                method: "post",
-                data: {
+            const response = await axios.post(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=AIzaSyD6kL6ZIAyeQLRDZ971EZtso086Q-uTzBg",
+                {
                     contents: [{
                         parts: [{
-                            text: `Please rate the following interview:...see i want only percentage of interview like how it as out of 100 and make sure you give atleast 10 to all response and give only name of topics that user has to learn..just the topics name,See So you have to  give me response according a strict format of like : The percentage is {place percentage here}% and the topics are as follows as{number ways} like 1,2,3,etc and the interviw question and answeras are as follow.  ${prompt}`
+                            text: `Strictly Evaluate the following interview based on the interviewee's performance. Provide the evaluation in the following format:
+
+The percentage score of the interview out of 100%.
+List the topics that the interviewee needs to learn, with a minimum of 10 topics.
+Provide the interview questions along with the answers given by the interviewee.
+Ensure that the score is clear and objective, reflecting the overall performance accurately. The response should be concise but thorough in terms of topics and evaluations.Provode the response in 3 lines ${prompt}.JUST GIVE ME THE PERCENTAGE IN FORMAT [PERCENTAGE(PLAINTEXT in Capital letter): {VARYING}%]`
                         }]
                     }]
-                },
-            });
-            console.log(response.data);
-
-            // Store the feedback from the API response
+                }
+            );
             setFeedback(response.data.candidates[0].content.parts[0].text);
         } catch (error) {
             console.error(error);
         } finally {
-            setLoading(false); // Stop loading
+            setLoading(false);
         }
     };
 
-
-    // ---------------- AI INTERVIEW CODE [CLOSE] -------------------------
-    const videoRef = useRef(null);
-    const isMountedRef = useRef(false);
-
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => {
-            isMountedRef.current = false;
-        };
-    }, []);
-
-    useEffect(() => {
-        const getCameraStream = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                if (isMountedRef.current) {
-                    videoRef.current.srcObject = stream;
-                    videoRef.current.play();
-                }
-            } catch (error) {
-                console.error(error);
-                alert('Error accessing the camera. Please check your browser permissions and try again.');
+    const getCameraStream = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            if (isMountedRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play();
             }
-        };
+        } catch (error) {
+            console.error(error);
+            alert('Error accessing the camera. Please check your browser permissions and try again.');
+        }
+    };
 
+    useEffect(() => {
         getCameraStream();
     }, []);
 
     return (
-        <>
-            <div style={{
-                display: 'flex', justifyContent: 'center', alignItems: 'flex-end', height: '100vh', backgroundColor: 'blue', background: `
-      repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(242, 242, 242, 0.3) 50px, rgba(242, 242, 242, 0.3) 51px),
-      repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(242, 242, 242, 0.3) 50px, rgba(242, 242, 242, 0.3) 51px),
-      #5813EA`,
-            }}>
-                <div style={{ position: 'relative', width: '900px', height: '800px', display: 'flex', justifyContent: 'center', alignItems: 'center', }}>
-                    <div className="video-container" style={{ position: 'relative', width: '1000px', height: '100%', overflow: 'hidden', }}>
-                    {questionIndex === questions.length ? (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-                                <div style={{ width: '200px', height: '200px' }}>
-                                <CircularProgressbar value={50} text={`${extractPercentage(feedback)}%`} />
-                                </div>
-                                <div style={{ textAlign: 'center', color: 'white', fontSize: '20px' }}>
-                                    <p>Interview Rating:</p>
-                                    <pre>{feedback}</pre>
-                                </div>
-                                <div className="text-overlay" style={{ position: 'absolute', top: '88%', left: '50%', transform: 'translate(-50%, -50%)', color: 'yellow', fontSize: '20px', fontWeight: 800, textShadow: '1px 1px 1px rgba(14,1,0,1)', border: '2px solid white', padding: '5px', backgroundColor: '#000', borderRadius: '10px', paddingInline: '20px' }}>
-                            <span style={{ color: 'yellow' }}>no worry! </span>
-                            <span style={{ color: 'red' }}>Be Relax!! 😌</span>
-                        </div>
-                            </div>
-                        ) : (
+        <Container>
+            <VideoContainer>
+                {questionIndex === questions.length ? (
+                    <FeedbackContainer>
+                        <ProgressBar>
+                            <CircularProgressbar value={extractPercentage(feedback)} text={`${extractPercentage(feedback)}%`} />
+                        </ProgressBar>
+                        <FeedbackText>
+                            <p>Interview Rating:</p>
+                            <pre>{feedback}</pre>
+                        </FeedbackText>
+                        <RelaxMessage>
+                            <span>No worries! </span>
+                            <span>Be Relaxed!! 😌</span>
+                        </RelaxMessage>
+                    </FeedbackContainer>
+                ) : (
+                    <>
+                        <Video ref={videoRef} muted autoPlay />
+                        <OverlayMessage>
+                            <span>Don't take stress! </span>
+                            <span>Be Relax!! 😌</span>
+                        </OverlayMessage>
+                    </>
+                )}
+                <div>
+                    <InterviewTitle>AI INTERVIEW</InterviewTitle>
+                    <Divider />
+                    <div>
+                        {questionIndex < questions.length ? (
                             <>
-                            <video
-                                ref={videoRef}
-                                width={900}
-                                height={900}
-                                muted
-                                autoPlay
-                                style={{
-                                    borderRadius: '5%',
-                                    objectFit: 'cover',
-                                    position: 'absolute',
-                                    top: 100,
-                                    left: 0,
-                                    transform: 'translate(0%, 0%)',
-                                    borderColor: 'yellow', borderWidth: '5px'
-                                }}
-                            />
-                       
-                        <div className="text-overlay" style={{ position: 'absolute', top: '88%', left: '50%', transform: 'translate(-50%, -50%)', color: 'yellow', fontSize: '20px', fontWeight: 800, textShadow: '1px 1px 1px rgba(14,1,0,1)', border: '2px solid white', padding: '5px', backgroundColor: '#000', borderRadius: '10px', paddingInline: '20px' }}>
-                            <span style={{ color: 'yellow' }}>Don't take stress! </span>
-                            <span style={{ color: 'red' }}>Be Relax!! 😌</span>
-                        </div>
-                        </>
-                         )}
-                        <div className="top-div" style={{ backgroundColor: '#0a1626', width: '100%', textAlign: 'center', color: 'white', padding: '10px 0', position: 'absolute', top: 50, left: 0, transform: 'translate(-0%, -0%)', display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ color: 'yellow', fontSize: '20px', fontWeight: 500, }}>AI INTERVIEW </span>
-                            <div style={{ width: '25%', backgroundColor: 'grey', height: '1px', alignSelf: 'center', margin: '10px' }}></div>
-                            <div>
-                                {/* // ------------ Question Span ------------------ */}
-                                {/* <span style={{ color: 'white', fontSize: '30px', fontWeight: 500, textShadow: '1px 1px 1px rgba(14,1,0,1)', }}>Q) What is use of usestate in React? </span> */}
-                            </div>
-                            {/* AI INTWERVIEW */}
-                            {questionIndex < questions.length ? (
-                                <>
-
-                                    <span style={{ color: 'white', fontSize: '30px', fontWeight: 500, textShadow: '1px 1px 1px rgba(14,1,0,1)', }}>{questions[questionIndex]}</span>
-                                    <p>{transcript}</p>
-                                    <p>Time left: {timer}</p>
-                                </>
-                            ) : (
-                                <p>Interview completed!</p>
-                            )}
-                            {/* <button onClick={() => setQuestionIndex(0)}>Start Interview</button> */}
-                            {questionIndex === questions.length && (
-                                <button onClick={handleFinish}>Finish Interview</button>
-                            )}
-                            {loading ? (
-                                <p>Loading...</p>
-                            ) : (
-                                feedback && <p>Feedback: {feedback}</p>
-                            )}
-                            {/* AI INTERVIEW CLOSED */}
-                        </div>
+                                <Question>{questions[questionIndex]}</Question>
+                                <p>{transcript}</p>
+                                <p>Time left: {timer}</p>
+                            </>
+                        ) : (
+                            <p>Interview completed!</p>
+                        )}
                     </div>
+                    {questionIndex === questions.length && (
+                        <FinishButton onClick={handleFinish}>Finish Interview</FinishButton>
+                    )}
+                    {loading && <p>Loading...</p>}
                 </div>
-            </div>
-
-
-        </>
-    )
+            </VideoContainer>
+        </Container>
+    );
 };
 
-export default Demo
+export default Demo;
+
+// Styled Components
+const Container = styled.div`
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    height: 100vh;
+    background-color: blue;
+    background: repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(242, 242, 242, 0.3) 50px, rgba(242, 242, 242, 0.3) 51px),
+    repeating-linear-gradient(90deg, transparent, transparent 50px, rgba(242, 242, 242, 0.3) 50px, rgba(242, 242, 242, 0.3) 51px), #5813EA;
+`;
+
+const VideoContainer = styled.div`
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    flex-direction:row;
+`;
+
+const Video = styled.video`
+    border-radius: 5%;
+    object-fit: cover;
+    border: 5px solid yellow;
+`;
+
+const FeedbackContainer = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+`;
+
+const ProgressBar = styled.div`
+    width: 200px;
+    height: 200px;
+`;
+
+const FeedbackText = styled.div`
+    text-align: center;
+    color: white;
+    font-size: 20px;
+`;
+
+const RelaxMessage = styled.div`
+    color: yellow;
+    font-size: 20px;
+    font-weight: 800;
+    text-shadow: 1px 1px 1px rgba(14, 1, 0, 1);
+    border: 2px solid white;
+    padding: 5px;
+    background-color: #000;
+    border-radius: 10px;
+    padding-inline: 20px;
+`;
+
+const OverlayMessage = styled.div`
+    position: absolute;
+    top: 88%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: yellow;
+    font-size: 20px;
+    font-weight: 800;
+    text-shadow: 1px 1px 1px rgba(14, 1, 0, 1);
+    border: 2px solid white;
+    padding: 5px;
+    background-color: #000;
+    border-radius: 10px;
+    padding-inline: 20px;
+`;
+
+const TopDiv = styled.div`
+    background-color: #0a1626;
+    // width: 100%;
+    text-align: center;
+    color: white;
+    padding: 10px 0;
+    // position: absolute;
+    // top: 50px;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+`;
+
+const InterviewTitle = styled.span`
+    color: yellow;
+    font-size: 20px;
+    font-weight: 500;
+`;
+
+const Divider = styled.div`
+    width: 25%;
+    background-color: grey;
+    height: 1px;
+    margin: 10px auto;
+`;
+
+const Question = styled.div`
+    color: white;
+    font-size: 30px;
+    font-weight: 500;
+    text-shadow: 1px 1px 1px rgba(14, 1, 0, 1);
+`;
+
+const FinishButton = styled.button`
+    padding: 10px 20px;
+    background-color: #f39c12;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-top: 10px;
+    transition: background-color 0.3s ease;
+
+    &:hover {
+        background-color: #e67e22;
+    }
+`;
