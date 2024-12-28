@@ -80,7 +80,7 @@ const Demo = () => {
 The percentage score of the interview out of 100%.
 List the topics that the interviewee needs to learn, with a minimum of 10 topics.
 Provide the interview questions along with the answers given by the interviewee.
-Ensure that the score is clear and objective, reflecting the overall performance accurately. The response should be concise but thorough in terms of topics and evaluations.Provode the response in 3 lines ${prompt}.JUST GIVE ME THE PERCENTAGE IN FORMAT [PERCENTAGE(PLAINTEXT in Capital letter): {VARYING}%]`
+Ensure that the score is clear and objective, reflecting the overall performance accurately. The response should be concise but thorough in terms of topics and evaluations.Provode the response in 3 lines ${prompt}.JUST GIVE ME THE PERCENTAGE IN FORMAT [PERCENTAGE(PLAINTEXT in Capital letter): {VARYING}%]..also give the topics to learn in a paragarph`
                         }]
                     }]
                 }
